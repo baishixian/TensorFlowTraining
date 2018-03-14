@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <paths>
+        <external-path
+                name="TensorFlowPhotos"
+                path="TensorFlowPhotos/" />
+        <!--无法获取外部存储的问题-->
+        <external-path name="sdcard_files" path="./"/>
+        <files-path name="files" path="./"/>
+        <!-- 部分 7.0 设备无法获取外置SD卡问题 Failed to find configured root that contains  -->
+        <root-path name="external_sdcard" path=""/>
+    </paths>
+</resources>

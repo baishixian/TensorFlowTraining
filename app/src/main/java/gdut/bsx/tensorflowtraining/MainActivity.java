@@ -21,6 +21,7 @@ import android.support.v4.content.FileProvider;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.app.AppCompatDelegate;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -42,13 +43,20 @@ import java.util.concurrent.ThreadFactory;
 import gdut.bsx.tensorflowtraining.ternsorflow.Classifier;
 import gdut.bsx.tensorflowtraining.ternsorflow.TensorFlowImageClassifier;
 
+/**
+ * MainActivity
+ * @author baishixian
+ */
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
-    private static final int PICTURE_REQUEST_CODE = 2;
-    private static final int PERMISSIONS_REQUEST = 108;
+    public static final String TAG = MainActivity.class.getSimpleName();
+
     private static final int OPEN_SETTING_REQUEST_COED = 110;
-    private static final int CAMERA_PERMISSIONS_REQUEST_CODE = 119;
     private static final int TAKE_PHOTO_REQUEST_CODE = 120;
+    private static final int PICTURE_REQUEST_CODE = 911;
+
+    private static final int PERMISSIONS_REQUEST = 108;
+    private static final int CAMERA_PERMISSIONS_REQUEST_CODE = 119;
 
     private static final String CURRENT_TAKE_PHOTO_URI = "currentTakePhotoUri";
 
@@ -114,16 +122,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         public boolean queueIdle() {
 
-            // 创建 TensorFlowImageClassifier
-            classifier = TensorFlowImageClassifier.create(
-                    getAssets(),
-                    MODEL_FILE,
-                    LABEL_FILE,
-                    INPUT_SIZE,
-                    IMAGE_MEAN,
-                    IMAGE_STD,
-                    INPUT_NAME,
-                    OUTPUT_NAME);
+            if (classifier == null) {
+                // 创建 Classifier
+               classifier = TensorFlowImageClassifier.create(MainActivity.this.getAssets(),
+                       MODEL_FILE, LABEL_FILE, INPUT_SIZE, IMAGE_MEAN, IMAGE_STD, INPUT_NAME, OUTPUT_NAME);
+            }
 
             // 初始化线程池
             executor = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
@@ -136,6 +139,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
             });
 
+            // 请求权限
             requestMultiplePermissions();
 
             return false;
@@ -143,7 +147,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     };
 
     /**
-     * 请求权限
+     * 请求存储和相机权限
      */
     private void requestMultiplePermissions() {
 
@@ -161,7 +165,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (hasCameraPermission != PackageManager.PERMISSION_GRANTED) {
             permissions.add(cameraPermission);
         }
-        
+
         if (!permissions.isEmpty()) {
             String[] params = permissions.toArray(new String[permissions.size()]);
             ActivityCompat.requestPermissions(this, params, PERMISSIONS_REQUEST);
@@ -171,9 +175,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
     {
-        if (grantResults.length > 0) {
-
-        }
         if (requestCode == PERMISSIONS_REQUEST) {
             if (Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permissions[0]) && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                 //permission denied 显示对话框告知用户必须打开权限 (storagePermission )
@@ -255,7 +256,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final String PACKAGE_URL_SCHEME = "package:";
 
     /**
-     * 启动应用的设置
+     * 启动应用的设置进行授权
      */
     private void startAppSettings() {
         Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
@@ -344,17 +345,24 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
+    /**
+     * 处理图片
+     * @param imageUri
+     */
     private void handleInputPhoto(Uri imageUri) {
         // 加载图片
         GlideApp.with(MainActivity.this).asBitmap().listener(new RequestListener<Bitmap>() {
+
             @Override
             public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Bitmap> target, boolean isFirstResource) {
+                Log.d(TAG,"handleInputPhoto onLoadFailed");
                 Toast.makeText(MainActivity.this, "图片加载失败", Toast.LENGTH_SHORT).show();
                 return false;
             }
 
             @Override
             public boolean onResourceReady(Bitmap resource, Object model, Target<Bitmap> target, DataSource dataSource, boolean isFirstResource) {
+                Log.d(TAG,"handleInputPhoto onResourceReady");
                 startImageClassifier(resource);
                 return false;
             }
@@ -372,8 +380,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             @Override
             public void run() {
                 try {
+                    Log.i(TAG, Thread.currentThread().getName() + " startImageClassifier");
                     Bitmap croppedBitmap = getScaleBitmap(bitmap, INPUT_SIZE);
+
                     final List<Classifier.Recognition> results = classifier.recognizeImage(croppedBitmap);
+                    Log.i(TAG, "startImageClassifier results: " + results);
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -381,6 +392,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         }
                     });
                 } catch (IOException e) {
+                    Log.e(TAG, "startImageClassifier getScaleBitmap " + e.getMessage());
                     e.printStackTrace();
                 }
             }
@@ -388,6 +400,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
 
+    /**
+     * 对图片进行缩放
+     * @param bitmap
+     * @param size
+     * @return
+     * @throws IOException
+     */
     private static Bitmap getScaleBitmap(Bitmap bitmap, int size) throws IOException {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
